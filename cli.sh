@@ -1,4 +1,6 @@
 #!/bin/bash
+SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
+./scripts.d/rpi_model_array.sh
 
 function expandfs () {
   # expandfs is way too complex, it should be handled by raspi-config
@@ -17,6 +19,11 @@ function rename () {
 }
 
 function password () {
+  currentuser="$( whoami)"
+  if [ $currentuser != "root" ]; then
+      echo " You ran this without sudo privileges or not as root"
+      exit 1
+  fi
   echo "pi:$1" | chpasswd
   echo "password change success"
   exit 0
@@ -36,6 +43,62 @@ function sshkeyadd () {
   echo "====== Added to 'pi' and 'root' user's authorized_keys ======"
   echo "$@"
 }
+
+function detectrpi () {
+  declare -A RPI_array
+
+  rpi_revision_version="$(cat /proc/cpuinfo | grep Revision | cut -d ':' -f2 | tr -d '[:space:]')"
+
+  echo ${!RPI_array[@]};
+
+  for key in "${!RPI_array[@]}"; do
+  	if [[ "$key" == "$rpi_revision_version" ]]; then
+  		echo "Your model is ${RPI_array[${key}]}"
+          fi
+  done
+
+}
+
+function static_wifi () {
+  #Set
+  ip=""
+  mask=""
+  gateway=""
+  dns=""
+  if [ -z $ip | -z $mask | -z $gateway | -z $dns ]; then
+      echo "Set the variables ip mask gateway dns"
+  else
+          ifconfig wlan0 up || true
+          ifconfig wlan0 down || true
+          mkdir -p /etc/network/interfaces.d/wlan0
+          interface_file="$SCRIPTPATH/lib/templates/network/wlan0/static"
+          cp -r $interface /etc/network/interfaces.d/wlan0
+          sed -i "s/$ip/IPADDRESS/g" /etc/network/interfaces.d/wlan0/static
+          sed -i "s/$mask/NETMASK/g" /etc/network/interfaces.d/wlan0/static
+          sed -i "s/$gateway/GATEWAY/g" /etc/network/interfaces.d/wlan0/static
+          sed -i "s/$dns/DNS/g" /etc/network/interfaces.d/wlan0/static
+          ifconfig wlan0 up || true
+          echo "This pirateship has anchored successfully!"
+  fi
+}
+
+
+# function detectwifi {
+#   declare -A RPI_array
+#
+#   rpi_revision_version="$(cat /proc/cpuinfo | grep Revision | cut -d ':' -f2 | tr -d '[:space:]')"
+#
+#   echo ${!RPI_array[@]};
+#
+#   for key in "${!RPI_array[@]}"; do
+#   	if [[ "$key" == "$rpi_revision_version" ]]; then
+#   		echo "Your model is ${RPI_array[${key}]}"
+#           fi
+#   done
+#
+# }
+
+
 
 function version {
   echo $(npm info '@treehouses/cli' version)
@@ -87,4 +150,3 @@ case $1 in
     help
     ;;
 esac
-
